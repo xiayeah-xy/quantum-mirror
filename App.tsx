@@ -1,40 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react';
 import StarBackground from './components/StarBackground';
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { CalibrationResult, HistoryItem } from './types';
 
-// --- 1. 类型定义 ---
-export interface CalibrationResult {
-  frequencyScan: string;
-  illusionStripping: string;
-  fiveSteps: string[];
-  actionAnchor: string;
-  recommendedBookTitle: string;
-  recommendedMusicTitle: string;
-}
-
-export interface HistoryItem {
-  id: string;
-  timestamp: number;
-  input: string;
-  result: CalibrationResult;
-}
-
-// --- 2. 静态数据 ---
+// --- 静态数据保持完全一致 ---
 const PRESET_CONCERNS = [
   "金钱似乎总是指间沙，无论如何努力都填不满内心深处的匮乏深渊...",
   "在职场表演中耗尽了最后一丝生命力，却依然对未知的评价感到深深恐惧...",
   "试图在亲密关系中寻找救赎，却发现只是在对方的镜子里重复旧有的伤痛...",
+  "当生活变成了一场无止境的追逐，我开始怀疑这一切繁荣背后的终极意义...",
+  "无法停止对未来可能发生的‘最坏情况’进行灾难化预演，灵魂无法安放...",
   "感觉自己被囚禁在社会的矩阵剧本里，渴望收回主权却找不到出口..."
 ];
 
 const BOOKS_DATA = [
-  { title: "《你值得过更好的生活》", author: "罗伯特·谢费尔德", desc: "拆解全息幻象的进阶指南" },
-  { title: "《金钱的灵魂》", author: "林恩·特威斯特", desc: "重新定义丰盛与流动的本质" },
+  { title: "《你值得过更好的生活》", author: "罗伯特·谢费尔德", desc: "核心架构：拆解全息幻象" },
+  { title: "《金钱的灵魂》", author: "林恩·特威斯特", desc: "重新定义丰盛与金钱的关系" },
   { title: "《当下的力量》", author: "埃克哈特·托利", desc: "进入意识现场的必经之路" },
   { title: "《瓦解控制》", author: "克拉克·斯特兰德", desc: "放弃小我控制，回归源头" },
   { title: "《信念的力量》", author: "布鲁斯·利普顿", desc: "量子生物学视角下的意识改写" },
-  { title: "《零极限》", author: "修·蓝博士", desc: "清理潜意识记忆的实操手册" },
-  { title: "《终极自由之路》", author: "莱斯特·利文森", desc: "释放与收回力量的终极教导" },
+  { title: "《零极限》", author: "修·蓝博士", desc: "清理潜意识记忆的实操指南" },
+  { title: "《终极自由之路》", author: "莱斯特·利文森", desc: "关于释放与收回力量的终极教导" },
   { title: "《显化的真义》", author: "尼维尔·高达德", desc: "意识即实相的古典量子观" }
 ];
 
@@ -46,7 +32,9 @@ const MUSIC_DATA = [
   { title: "Healing Resonance 432Hz", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3", type: "细胞修复" },
   { title: "Higher Self Connection", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3", type: "意识链接" },
   { title: "Pineal Gland Activation", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3", type: "觉知开启" },
-  { title: "Universal Harmony", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3", type: "万物共振" }
+  { title: "Universal Harmony", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3", type: "万物共振" },
+  { title: "Eternal Silence", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3", type: "宁静本源" },
+  { title: "Soul Blueprint Alignment", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3", type: "灵魂重塑" }
 ];
 
 const App: React.FC = () => {
@@ -56,16 +44,13 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   
-  // 状态控制
   const [isBgmPlaying, setIsBgmPlaying] = useState(false);
-  const [isDepotOpen, setIsDepotOpen] = useState(false);
-  const [depotPlayingTitle, setDepotPlayingTitle] = useState<string | null>(null);
-  
   const bgmRef = useRef<HTMLAudioElement>(null);
+  const [depotPlayingTitle, setDepotPlayingTitle] = useState<string | null>(null);
   const depotAudioRef = useRef<HTMLAudioElement>(null);
   const BGM_URL = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3";
 
-  // 打字机逻辑
+  // Typewriter effect
   const [displayedPlaceholder, setDisplayedPlaceholder] = useState("");
   const [currentConcernIndex, setCurrentConcernIndex] = useState(0);
   const [charIndex, setCharIndex] = useState(0);
@@ -73,7 +58,11 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (bgmRef.current) {
-      isBgmPlaying ? bgmRef.current.play().catch(() => setIsBgmPlaying(false)) : bgmRef.current.pause();
+      if (isBgmPlaying) {
+        bgmRef.current.play().catch(() => setIsBgmPlaying(false));
+      } else {
+        bgmRef.current.pause();
+      }
     }
   }, [isBgmPlaying]);
 
@@ -98,263 +87,234 @@ const App: React.FC = () => {
     return () => clearTimeout(timeout);
   }, [charIndex, isDeleting, currentConcernIndex, result, loading]);
 
+  // --- 核心修改：使用 Gemini 2.5 Flash ---
   const handleCalibrate = async () => {
     if (!input.trim()) return;
     setLoading(true);
     setError(null);
-    setIsBgmPlaying(true);
+    setResult(null);
 
     const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
     try {
       const genAI = new GoogleGenerativeAI(API_KEY);
-      // 这里使用的是你指定的 2.5 flash 模型
       const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
       const prompt = `你是一位精通意识法则的大师。针对用户困扰进行频率校准。
       用户困扰："${input}"
       
-      请必须从以下列表中选出一本书名（严格匹配）：${BOOKS_DATA.map(b => b.title).join(',')}
-      请必须从以下列表中选出一个音乐名（严格匹配）：${MUSIC_DATA.map(m => m.title).join(',')}
+      请从以下列表中严格匹配一本书和一段音乐：
+      书籍列表：${BOOKS_DATA.map(b => b.title).join(', ')}
+      音乐列表：${MUSIC_DATA.map(m => m.title).join(', ')}
 
-      返回 JSON：
-      {
-        "frequencyScan": "当前频率深度洞察",
-        "illusionStripping": "该困扰背后的全息幻象本质",
-        "fiveSteps": ["步骤1", "步骤2", "步骤3", "步骤4", "步骤5"],
-        "actionAnchor": "一个能在现实中执行的物理动作锚点",
-        "recommendedBookTitle": "从列表中选的书名",
-        "recommendedMusicTitle": "从列表中选的音乐名"
-      }`;
+      请以 JSON 格式返回，包含字段：
+      frequencyScan (200字内频率解析), 
+      illusionStripping (剥离本质), 
+      fiveSteps (收回力量五部曲数组), 
+      actionAnchor (一个物理动作), 
+      recommendedBookTitle (必须匹配列表), 
+      recommendedMusicTitle (必须匹配列表)`;
 
       const response = await model.generateContent(prompt);
       const text = response.response.text();
-      const cleanText = text.replace(/```json|```/g, '').trim();
-      const data = JSON.parse(cleanText) as CalibrationResult;
+      const cleanJson = text.replace(/```json|```/g, "").trim();
+      const data = JSON.parse(cleanJson);
 
       setResult(data);
-      setHistory(prev => [{ id: Date.now().toString(), timestamp: Date.now(), input, result: data }, ...prev].slice(0, 10));
+      setHistory(prev => [{ id: Date.now().toString(), timestamp: Date.now(), input: input, result: data }, ...prev].slice(0, 10));
       setInput('');
+      if (!isBgmPlaying) setIsBgmPlaying(true);
     } catch (err: any) {
-      setError("核心频率接入失败，请确保 API Key 配置正确。");
+      setError("连接量子核心失败。请检查 API Key。");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleMusicToggle = (track: typeof MUSIC_DATA[0]) => {
+  const handleDepotMusicPlay = (track: typeof MUSIC_DATA[0]) => {
     if (depotPlayingTitle === track.title) {
       depotAudioRef.current?.pause();
       setDepotPlayingTitle(null);
     } else {
       if (depotAudioRef.current) {
         depotAudioRef.current.src = track.url;
-        depotAudioRef.current.play();
+        depotAudioRef.current.play().catch(e => console.error(e));
         setDepotPlayingTitle(track.title);
         setIsBgmPlaying(false);
       }
     }
   };
 
-  // 匹配逻辑
-  const matchedBook = result ? BOOKS_DATA.find(b => b.title.includes(result.recommendedBookTitle.replace(/《|》/g, ''))) || BOOKS_DATA[0] : null;
-  const matchedMusic = result ? MUSIC_DATA.find(m => m.title.includes(result.recommendedMusicTitle)) || MUSIC_DATA[0] : null;
+  const matchedBook = result ? BOOKS_DATA.find(b => b.title.includes(result.recommendedBookTitle) || result.recommendedBookTitle.includes(b.title)) || BOOKS_DATA[0] : null;
+  const matchedMusic = result ? MUSIC_DATA.find(m => m.title.includes(result.recommendedMusicTitle) || result.recommendedMusicTitle.includes(m.title)) || MUSIC_DATA[0] : null;
 
   return (
-    <div className="relative min-h-screen flex flex-col z-10 font-light text-white overflow-x-hidden">
+    <div className="relative min-h-screen flex flex-col z-10 font-light selection:bg-cyan-500/30">
       <StarBackground />
       <audio ref={bgmRef} src={BGM_URL} loop />
       <audio ref={depotAudioRef} onEnded={() => setDepotPlayingTitle(null)} />
 
-      {/* 音乐悬浮按钮 */}
+      {/* 右上角音乐标志 - 严格恢复 FontAwesome 图标 */}
       <button 
-        onClick={() => { setIsBgmPlaying(!isBgmPlaying); setDepotPlayingTitle(null); depotAudioRef.current?.pause(); }}
-        className="fixed top-6 right-6 z-50 p-4 rounded-full bg-white/5 backdrop-blur-2xl border border-white/10 opacity-60 hover:opacity-100 transition-all"
+        onClick={() => {
+          setIsBgmPlaying(!isBgmPlaying);
+          if (depotAudioRef.current) { depotAudioRef.current.pause(); setDepotPlayingTitle(null); }
+        }}
+        className="fixed top-6 right-6 z-50 p-4 rounded-full bg-white/5 backdrop-blur-2xl border border-white/10 opacity-60 hover:opacity-100 hover:scale-110 transition-all duration-500 shadow-2xl group"
       >
-        <div className="text-cyan-400 w-6 h-6 flex items-center justify-center">
-          {isBgmPlaying || depotPlayingTitle ? (
-            <div className="w-1 h-4 bg-cyan-400 animate-pulse mx-0.5" />
-          ) : (
-             <div className="border-l-8 border-l-cyan-400 border-y-4 border-y-transparent ml-1" />
-          )}
+        <div className="text-cyan-400 text-lg md:text-xl">
+          {isBgmPlaying || depotPlayingTitle ? <i className="fas fa-volume-up animate-pulse"></i> : <i className="fas fa-volume-mute"></i>}
         </div>
       </button>
 
       <div className="flex-grow flex flex-col items-center justify-center py-10 px-6 w-full max-w-5xl mx-auto">
-        <header className="text-center mb-10 animate-fadeIn">
-          <h1 className="text-3xl md:text-5xl font-extralight tracking-[0.2em] gradient-text mb-4 uppercase">频率校准之镜</h1>
-          <p className="text-cyan-200/80 text-[10px] md:text-xs tracking-[0.4em] uppercase">QUANTUM MIRROR • 剥离幻象 • 收回力量</p>
-        </header>
+        <div className="w-full flex flex-col items-center">
+          <header className="text-center mb-10 relative w-full animate-fadeIn">
+            <h1 className="text-3xl md:text-5xl font-extralight tracking-[0.2em] md:tracking-[0.3em] gradient-text mb-4 drop-shadow-2xl whitespace-nowrap">
+              频率校准之镜
+            </h1>
+            <p className="text-cyan-200/80 font-medium text-xs md:text-sm tracking-[0.2em] md:tracking-[0.4em] uppercase opacity-90">
+              QUANTUM MIRROR • 剥离幻象 • 收回力量
+            </p>
+            <div className="mt-6 mx-auto w-24 md:w-32 h-[1px] bg-gradient-to-r from-transparent via-cyan-400/40 to-transparent"></div>
+          </header>
 
-        <main className="w-full">
-          <div className="glass-panel rounded-[2.5rem] p-6 md:p-14 min-h-[500px] flex flex-col justify-center relative shadow-2xl overflow-hidden">
-            
-            {/* 输入页 */}
-            {!result && !loading && (
-              <div className="space-y-10 animate-fadeIn">
-                <textarea
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder={displayedPlaceholder}
-                  className="w-full h-56 bg-black/40 backdrop-blur-3xl border border-cyan-400/40 rounded-[2.5rem] p-12 text-white text-center text-xl md:text-2xl focus:outline-none transition-all resize-none shadow-2xl"
-                />
-                <button
-                  onClick={handleCalibrate}
-                  disabled={!input.trim()}
-                  className="w-full py-6 rounded-2xl font-bold text-lg tracking-[0.5em] bg-gradient-to-r from-cyan-500/80 to-purple-600/80 text-white hover:scale-[1.01] transition-all"
-                >
-                  收回力量
-                </button>
-                {error && <p className="text-red-400 text-center text-sm">{error}</p>}
-              </div>
-            )}
-
-            {/* 加载页 (你想要的那个转圈圈图标) */}
-            {loading && (
-              <div className="flex flex-col items-center justify-center py-20 space-y-10">
-                <div className="relative w-32 h-32">
-                  <div className="absolute inset-0 border border-cyan-500/10 rounded-full scale-150 animate-pulse"></div>
-                  <div className="absolute inset-0 border-[3px] border-cyan-500/20 rounded-full shadow-[0_0_20px_rgba(34,211,238,0.2)]"></div>
-                  <div className="absolute inset-0 border-[3px] border-t-white rounded-full animate-spin shadow-cyan-400"></div>
-                  <div className="absolute inset-0 flex items-center justify-center text-cyan-400">
-                     {/* 中心原子图标 */}
-                     <svg className="w-12 h-12 animate-spin-slow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <circle cx="12" cy="12" r="3" fill="currentColor" fillOpacity="0.2"/>
-                        <ellipse cx="12" cy="12" rx="10" ry="4" strokeDasharray="2 4"/>
-                        <ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(60 12 12)" strokeDasharray="2 4"/>
-                        <ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(120 12 12)" strokeDasharray="2 4"/>
-                     </svg>
+          <main className="w-full">
+            {/* 恢复 glass-panel 原始悬停彩色阴影效果 */}
+            <div className="glass-panel rounded-[2.5rem] p-6 md:p-14 transition-all duration-700 hover:shadow-[0_0_80px_rgba(128,222,234,0.15)] min-h-[400px] md:min-h-[480px] flex flex-col justify-center relative overflow-hidden shadow-2xl">
+              
+              {!result && !loading && (
+                <div className="space-y-8 md:space-y-10 animate-fadeIn">
+                  {/* 输入框发光边缘效果 */}
+                  <div className="relative group">
+                    <div className="absolute -inset-2 bg-gradient-to-r from-cyan-500/20 to-purple-500/20 rounded-[2.5rem] blur-2xl opacity-0 group-hover:opacity-100 transition duration-1000"></div>
+                    <textarea
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      placeholder={displayedPlaceholder}
+                      className="relative w-full h-40 md:h-56 bg-black/40 backdrop-blur-3xl border border-cyan-400/40 rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-12 text-white text-center placeholder-cyan-100/20 text-lg md:text-2xl focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-300/20 transition-all resize-none shadow-2xl leading-relaxed font-light"
+                    />
                   </div>
+                  <button
+                    onClick={handleCalibrate}
+                    disabled={!input.trim() || loading}
+                    className={`w-full py-5 md:py-6 rounded-2xl font-bold text-base md:text-lg tracking-[0.4em] md:tracking-[0.5em] transition-all duration-700 transform uppercase
+                      ${input.trim() ? 'bg-gradient-to-r from-cyan-500/80 via-blue-500/80 to-purple-600/80 text-white hover:scale-[1.01] hover:shadow-[0_20px_40px_rgba(128,222,234,0.3)] shadow-xl' : 'bg-white/5 text-white/10 cursor-not-allowed border border-white/5'}`}
+                  >
+                    收回力量
+                  </button>
                 </div>
-                <div className="text-center space-y-2">
-                   <p className="tracking-[0.5em] text-cyan-200 uppercase animate-pulse">解析全息图景...</p>
-                   <p className="text-[10px] text-white/40 uppercase tracking-widest italic">正在剥离频率投影，请保持呼吸</p>
-                </div>
-              </div>
-            )}
+              )}
 
-            {/* 结果页 (找回被丢的内容) */}
-            {result && (
-              <div className="animate-fadeIn space-y-10 py-4 overflow-y-auto max-h-[75vh] no-scrollbar">
-                {/* 1. 频率扫描 */}
-                <section className="border-l-2 border-cyan-400/80 pl-8">
-                  <h3 className="text-cyan-400 text-[10px] font-bold tracking-[0.3em] uppercase">【频率扫描】</h3>
-                  <p className="text-2xl font-light mt-2 leading-tight">{result.frequencyScan}</p>
-                </section>
-
-                {/* 2. 幻象剥离 */}
-                <section className="border-l-2 border-purple-400/80 pl-8">
-                  <h3 className="text-purple-400 text-[10px] font-bold tracking-[0.3em] uppercase">【幻象剥离】</h3>
-                  <p className="text-lg italic opacity-90 mt-2 leading-relaxed">{result.illusionStripping}</p>
-                </section>
-
-                {/* 3. 五部曲 */}
-                <section className="space-y-4">
-                  <h3 className="text-yellow-400 text-[10px] font-bold tracking-[0.3em] uppercase ml-8">【收回力量五部曲】</h3>
-                  <div className="grid grid-cols-1 gap-4">
-                    {result.fiveSteps.map((step, i) => (
-                      <div key={i} className="bg-white/5 p-6 rounded-2xl border border-white/5 flex items-start gap-4 hover:bg-white/10 transition-all">
-                        <span className="text-cyan-400 font-bold opacity-60">{i+1}</span>
-                        <p className="font-light leading-relaxed">{step}</p>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-
-                {/* 4. 行动锚点 */}
-                <section className="p-8 bg-gradient-to-br from-green-900/30 to-emerald-900/30 rounded-[2rem] border border-green-500/20">
-                    <h3 className="text-green-400 text-[10px] font-bold tracking-[0.3em] uppercase mb-3">【行动锚点】</h3>
-                    <p className="text-xl font-light italic leading-relaxed text-emerald-100">{result.actionAnchor}</p>
-                </section>
-
-                {/* 5. 补给站 (带查看更多) */}
-                <section className="pt-10 border-t border-white/10">
-                  <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-white/30 text-[10px] font-bold tracking-[0.5em] uppercase">校准补给</h3>
-                    <button onClick={() => setIsDepotOpen(true)} className="text-cyan-400/50 hover:text-cyan-400 text-[10px] tracking-widest uppercase transition-all">
-                      查看更多库 →
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* 书籍 */}
-                    <div className="bg-black/30 p-6 rounded-3xl border border-white/10">
-                      <h4 className="text-pink-300 text-[9px] uppercase tracking-widest mb-2 font-bold">意识指引</h4>
-                      <p className="text-lg">{matchedBook?.title}</p>
-                      <p className="text-[10px] opacity-40 italic">{matchedBook?.author}</p>
-                    </div>
-                    {/* 音乐 */}
-                    <div 
-                      onClick={() => matchedMusic && handleMusicToggle(matchedMusic)}
-                      className="bg-black/30 p-6 rounded-3xl border border-white/10 cursor-pointer hover:bg-white/5 transition-all flex justify-between items-center group"
-                    >
-                      <div>
-                        <h4 className="text-cyan-300 text-[9px] uppercase tracking-widest mb-2 font-bold">频率共鸣</h4>
-                        <p className="text-lg">{matchedMusic?.title}</p>
-                        <p className="text-[10px] opacity-40 uppercase">{matchedMusic?.type}</p>
-                      </div>
-                      <div className="text-cyan-400 opacity-40 group-hover:opacity-100">
-                        {depotPlayingTitle === matchedMusic?.title ? "⏸" : "▶"}
-                      </div>
+              {loading && (
+                <div className="flex flex-col items-center justify-center py-16 md:py-20 space-y-8 md:space-y-10">
+                  <div className="relative w-24 h-24 md:w-32 md:h-32">
+                    <div className="absolute inset-0 border border-cyan-500/10 rounded-full scale-150 animate-pulse"></div>
+                    <div className="absolute inset-0 border-[3px] border-cyan-500/20 rounded-full"></div>
+                    <div className="absolute inset-0 border-[3px] border-t-white rounded-full animate-spin"></div>
+                    <div className="absolute inset-0 flex items-center justify-center text-cyan-400 text-3xl md:text-4xl">
+                      <i className="fas fa-atom animate-spin-slow"></i>
                     </div>
                   </div>
-                </section>
+                  <p className="text-white text-lg md:text-xl font-light tracking-[0.5em] uppercase animate-pulse">解析全息图景</p>
+                </div>
+              )}
 
-                <button onClick={() => setResult(null)} className="w-full text-center text-white/20 text-[10px] tracking-[1em] py-10 uppercase hover:text-white transition-all">
-                  — 返回虚空 —
-                </button>
-              </div>
-            )}
-          </div>
+              {result && (
+                <div className="animate-fadeIn space-y-10 md:space-y-12 py-4 overflow-y-auto max-h-[75vh] no-scrollbar pr-2">
+                  <section className="space-y-4 border-l-2 border-cyan-400/80 pl-6 md:pl-8 py-1">
+                    <h3 className="text-cyan-400 text-[9px] md:text-[10px] font-bold tracking-[0.3em] uppercase">【频率扫描】</h3>
+                    <p className="text-xl md:text-2xl text-white font-light leading-tight">{result.frequencyScan}</p>
+                  </section>
 
-          {/* 历史档案 */}
-          {history.length > 0 && !result && (
-            <div className="mt-12 flex justify-center gap-4 overflow-x-auto pb-4 no-scrollbar">
-              {history.map(item => (
-                <button key={item.id} onClick={() => setResult(item.result)} className="bg-white/5 px-4 py-2 rounded-full border border-white/10 text-[10px] opacity-40 hover:opacity-100 transition-all whitespace-nowrap">
-                  ARCHIVE #{item.id.slice(-4)}
-                </button>
-              ))}
+                  <section className="space-y-4 border-l-2 border-purple-400/80 pl-6 md:pl-8 py-1">
+                    <h3 className="text-purple-400 text-[9px] md:text-[10px] font-bold tracking-[0.3em] uppercase">【幻象剥离】</h3>
+                    <p className="text-white text-base md:text-lg font-light leading-relaxed italic opacity-90">{result.illusionStripping}</p>
+                  </section>
+
+                  {/* 五部曲板块 */}
+                  <section className="space-y-6">
+                    <h3 className="text-yellow-400 text-[9px] md:text-[10px] font-bold tracking-[0.3em] uppercase ml-6 md:ml-8 mb-4">【收回力量五部曲】</h3>
+                    <div className="grid grid-cols-1 gap-4">
+                      {result.fiveSteps.map((step, idx) => (
+                        <div key={idx} className="flex items-start space-x-4 md:space-x-6 bg-white/[0.03] p-6 md:p-8 rounded-[1.5rem] border border-white/5 hover:bg-white/[0.06] transition-all duration-500 group shadow-sm">
+                          <span className="flex-shrink-0 w-7 h-7 md:w-8 md:h-8 rounded-full border border-cyan-500/30 flex items-center justify-center text-cyan-300 font-bold text-[10px] md:text-xs">
+                            {idx + 1}
+                          </span>
+                          <p className="text-base md:text-lg text-white font-light leading-relaxed">{step}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  {/* 行动锚点 */}
+                  <section className="p-6 md:p-8 bg-gradient-to-br from-green-900/30 to-emerald-900/30 rounded-[2rem] border border-green-500/20 shadow-xl">
+                    <h3 className="text-green-400 text-[9px] md:text-[10px] font-bold tracking-[0.3em] uppercase mb-4">【行动锚点】</h3>
+                    <p className="text-lg md:text-xl text-white font-light italic leading-relaxed">{result.actionAnchor}</p>
+                  </section>
+
+                  {/* 量子补给站 - 恢复原来的命名和布局 */}
+                  <section className="mt-12 md:mt-16 pt-10 md:pt-12 border-t border-white/10 space-y-8 md:space-y-10">
+                    <h3 className="text-white/30 text-[9px] md:text-[10px] font-bold tracking-[0.4em] md:tracking-[0.5em] uppercase text-center">QUANTUM DEPOT 量子补给站</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {matchedBook && (
+                        <div className="bg-black/40 backdrop-blur-3xl border border-white/10 p-5 rounded-[1.5rem] hover:bg-white/[0.05] transition-all">
+                          <h4 className="text-[9px] text-pink-300 uppercase mb-2">意识指引</h4>
+                          <p className="text-base text-white font-medium">{matchedBook.title}</p>
+                          <p className="text-xs text-white/60 font-light mt-1">{matchedBook.desc}</p>
+                        </div>
+                      )}
+                      {matchedMusic && (
+                        <div 
+                          onClick={() => handleDepotMusicPlay(matchedMusic)}
+                          className={`cursor-pointer bg-black/40 backdrop-blur-3xl border ${depotPlayingTitle === matchedMusic.title ? 'border-cyan-400/60 shadow-[0_0_20px_rgba(34,211,238,0.3)]' : 'border-white/10'} p-5 rounded-[1.5rem] hover:bg-white/[0.05] transition-all flex justify-between items-center`}
+                        >
+                          <div>
+                            <h4 className="text-[9px] text-cyan-300 uppercase mb-2">频率共鸣</h4>
+                            <p className="text-base text-white font-medium">{matchedMusic.title}</p>
+                          </div>
+                          <div className="text-cyan-400 text-2xl">
+                            {depotPlayingTitle === matchedMusic.title ? <i className="fas fa-pause-circle animate-pulse"></i> : <i className="fas fa-play-circle opacity-40 hover:opacity-100"></i>}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </section>
+
+                  <button
+                    onClick={() => { setResult(null); setDepotPlayingTitle(null); depotAudioRef.current?.pause(); }}
+                    className="w-full mt-6 py-6 text-white/20 hover:text-white transition-all text-[9px] tracking-[0.8em] font-medium uppercase border-t border-white/5 pt-8"
+                  >
+                    — 返回虚空 —
+                  </button>
+                </div>
+              )}
             </div>
-          )}
-        </main>
+
+            {/* 同步的校准档案 */}
+            {history.length > 0 && (
+              <div className="mt-16 md:mt-20 w-full animate-fadeIn">
+                <h4 className="text-[9px] text-white/20 tracking-[0.5em] uppercase mb-8 text-center font-bold">同步的校准档案</h4>
+                <div className="flex flex-wrap justify-center gap-4 md:gap-6">
+                  {history.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setResult(item.result)}
+                      className="group flex-shrink-0 w-36 md:w-44 p-4 md:p-6 bg-white/[0.02] backdrop-blur-3xl rounded-[1.2rem] border border-white/10 text-left hover:border-cyan-400/40 transition-all hover:-translate-y-2 shadow-2xl"
+                    >
+                      <span className="text-[8px] text-white/30 uppercase">#{item.id.slice(-4)}</span>
+                      <p className="text-[10px] text-white/40 truncate mt-2 font-light italic">"{item.input}"</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </main>
+        </div>
       </div>
 
-      {/* 补给库弹出层 */}
-      {isDepotOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 animate-fadeIn">
-          <div className="absolute inset-0 bg-black/90 backdrop-blur-xl" onClick={() => setIsDepotOpen(false)} />
-          <div className="relative w-full max-w-4xl max-h-[80vh] bg-white/[0.03] border border-white/10 rounded-[3rem] p-12 overflow-y-auto no-scrollbar shadow-2xl">
-            <h2 className="text-2xl font-extralight tracking-[0.3em] uppercase mb-12">量子资源库</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-              <section className="space-y-6">
-                <h3 className="text-pink-300 text-[10px] font-bold tracking-[0.5em] uppercase border-b border-pink-500/20 pb-2">意识典籍</h3>
-                {BOOKS_DATA.map((book, i) => (
-                  <div key={i} className="p-4 bg-white/5 rounded-2xl hover:bg-white/10 transition-all">
-                    <p className="text-lg">{book.title}</p>
-                    <p className="text-[10px] text-white/40 mb-2 uppercase">{book.author}</p>
-                    <p className="text-xs text-white/60 italic">{book.desc}</p>
-                  </div>
-                ))}
-              </section>
-              <section className="space-y-6">
-                <h3 className="text-cyan-300 text-[10px] font-bold tracking-[0.5em] uppercase border-b border-cyan-500/20 pb-2">共振音频</h3>
-                {MUSIC_DATA.map((music, i) => (
-                  <div key={i} onClick={() => handleMusicToggle(music)} className="p-4 bg-white/5 rounded-2xl hover:bg-cyan-500/20 transition-all cursor-pointer flex justify-between items-center">
-                    <div>
-                        <p className="text-lg">{music.title}</p>
-                        <p className="text-[10px] text-white/40 uppercase">{music.type}</p>
-                    </div>
-                    {depotPlayingTitle === music.title && <div className="w-2 h-2 bg-cyan-400 rounded-full animate-ping" />}
-                  </div>
-                ))}
-              </section>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <footer className="py-10 text-[10px] text-white/10 tracking-[1em] text-center uppercase">
-        © Mirror Logic • Quantum Consciousness
+      <footer className="w-full py-10 text-[8px] md:text-[10px] text-white/10 tracking-[1em] uppercase text-center shrink-0">
+        © Mirror Logic • Engineered for Consciousness
       </footer>
 
       <style dangerouslySetInnerHTML={{ __html: `
@@ -362,8 +322,6 @@ const App: React.FC = () => {
         .animate-spin-slow { animation: spin-slow 15s linear infinite; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        .animate-fadeIn { animation: fadeIn 0.6s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
       `}} />
     </div>
   );
